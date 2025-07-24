@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>간단 타로점 보기</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Gowun Dodum', sans-serif;
+        }
+        .card-back {
+            background: linear-gradient(135deg, #6b21a8, #9d4edd);
+            border: 2px solid #e9d5ff;
+            box-shadow: 0 0 15px rgba(233, 213, 255, 0.5);
+        }
+        .card-front {
+            background-color: #fdf4ff;
+            border: 2px solid #a855f7;
+            transform: rotateY(180deg);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+        .card-container {
+            perspective: 1000px;
+        }
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.8s;
+            transform-style: preserve-3d;
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            border-radius: 1rem;
+            overflow: hidden;
+        }
+        /* ▼▼▼ [수정된 부분 1] 역방향 이미지 회전을 위한 스타일 추가 ▼▼▼ */
+        #cardImage {
+            transition: transform 0.5s;
+        }
+        .reversed-image {
+            transform: rotate(180deg);
+        }
+        /* ▲▲▲ [수정된 부분 1] ▲▲▲ */
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-md mx-auto text-center">
+        <h1 class="text-4xl md:text-5xl font-bold text-purple-300 mb-4">오늘의 타로</h1>
+        <p class="text-purple-200 mb-8">마음을 가다듬고, 당신의 질문을 생각하며 카드를 뽑아보세요.</p>
+
+        <button id="drawButton" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105 mb-8">
+            카드 뽑기
+        </button>
+
+        <div id="result" class="w-full space-y-6 opacity-0 transition-opacity duration-1000">
+            <div class="card-container w-48 h-80 mx-auto">
+                <div id="card" class="card w-full h-full">
+                    <div class="card-inner">
+                        <div class="card-face card-back">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-yellow-300"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+                        </div>
+                        <div id="cardFront" class="card-face card-front text-gray-800 p-0">
+                            <img id="cardImage" src="" alt="타로 카드" class="w-full h-[80%] object-contain">
+                            <div id="cardText" class="h-[20%] flex flex-col justify-center items-center w-full">
+                                <!-- 카드 이름이 여기에 들어감 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="interpretation" class="bg-gray-800 p-6 rounded-2xl shadow-inner">
+                <h2 id="cardName" class="text-2xl font-bold text-purple-300 mb-2"></h2>
+                <p id="cardOrientation" class="text-lg text-yellow-400 mb-4"></p>
+                <p id="cardMeaning" class="text-purple-200"></p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const majorArcana = [
+            { name: "0. 바보 (The Fool)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/RWS_Tarot_00_Fool.jpg/800px-RWS_Tarot_00_Fool.jpg", meaning: { upright: "새로운 시작, 자유, 무죄, 순수, 모험, 이상주의. 틀에 얽매이지 않는 자유로운 상태를 나타냅니다.", reversed: "무모함, 어리석음, 나쁜 결정, 불확실성, 주저. 준비되지 않은 시작이나 잘못된 선택을 경고합니다." } },
+            { name: "1. 마법사 (The Magician)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/RWS_Tarot_01_Magician.jpg/800px-RWS_Tarot_01_Magician.jpg", meaning: { upright: "창조력, 의지, 재능, 능력, 독창성. 당신의 재능을 발휘하여 원하는 것을 창조할 수 있는 힘이 있습니다.", reversed: "기만, 속임수, 재능의 오용, 조작. 능력을 나쁜 방향으로 사용하거나 사기를 당할 수 있음을 의미합니다." } },
+            { name: "2. 고위 여사제 (The High Priestess)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/RWS_Tarot_02_High_Priestess.jpg/800px-RWS_Tarot_02_High_Priestess.jpg", meaning: { upright: "직관, 지혜, 비밀, 내면의 목소리, 신비. 보이지 않는 진실과 직관을 믿어야 할 때입니다.", reversed: "숨겨진 진실, 무시된 직관, 피상적인 지식. 내면의 목소리를 듣지 않아 중요한 것을 놓치고 있을 수 있습니다." } },
+            { name: "3. 여제 (The Empress)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/RWS_Tarot_03_Empress.jpg/800px-RWS_Tarot_03_Empress.jpg", meaning: { upright: "풍요, 다산, 모성애, 아름다움, 관능, 자연. 물질적, 정신적으로 풍요로운 시기입니다.", reversed: "창의력 고갈, 의존, 정체, 불만. 풍요로움이 막히거나 다른 사람에게 지나치게 의존하고 있을 수 있습니다." } },
+            { name: "4. 황제 (The Emperor)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/RWS_Tarot_04_Emperor.jpg/800px-RWS_Tarot_04_Emperor.jpg", meaning: { upright: "권위, 지배, 구조, 안정, 아버지상, 리더십. 질서와 안정을 통해 목표를 달성할 수 있습니다.", reversed: "독재, 통제욕, 경직된 사고, 무책임. 지나친 통제나 권위의 남용을 경고합니다." } },
+            { name: "5. 교황 (The Hierophant)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/RWS_Tarot_05_Hierophant.jpg/800px-RWS_Tarot_05_Hierophant.jpg", meaning: { upright: "전통, 신념, 교육, 정신적 지도자, 사회적 규범. 전통적인 가치나 단체에 소속되어 배움을 얻을 시기입니다.", reversed: "도전적인 신념, 비전통, 자유로운 사고, 규칙 파괴. 기존의 틀에서 벗어나 새로운 길을 모색해야 할 수 있습니다." } },
+            { name: "6. 연인 (The Lovers)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/RWS_Tarot_06_Lovers.jpg/800px-RWS_Tarot_06_Lovers.jpg", meaning: { upright: "사랑, 관계, 조화, 선택, 결합. 중요한 관계나 선택의 기로에 서 있습니다. 마음의 결정을 따라야 합니다.", reversed: "불화, 잘못된 선택, 관계의 균열, 갈등. 관계에 문제가 생기거나 잘못된 선택을 할 수 있습니다." } },
+            { name: "7. 전차 (The Chariot)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/RWS_Tarot_07_Chariot.jpg/800px-RWS_Tarot_07_Chariot.jpg", meaning: { upright: "승리, 의지력, 전진, 자기 통제, 결단력. 강한 의지로 어려움을 극복하고 목표를 향해 나아갈 때입니다.", reversed: "방향 상실, 통제 불능, 좌절, 성급함. 목표를 잃고 방황하거나 의지력을 상실할 수 있습니다." } },
+            { name: "8. 힘 (Strength)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/RWS_Tarot_08_Strength.jpg/800px-RWS_Tarot_08_Strength.jpg", meaning: { upright: "용기, 인내, 부드러운 힘, 자기 극복, 연민. 내면의 힘과 용기로 어려움을 부드럽게 제어할 수 있습니다.", reversed: "두려움, 나약함, 자신감 부족, 충동. 내면의 두려움에 휩싸여 힘을 제대로 발휘하지 못하고 있습니다." } },
+            { name: "9. 은둔자 (The Hermit)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/RWS_Tarot_09_Hermit.jpg/800px-RWS_Tarot_09_Hermit.jpg", meaning: { upright: "성찰, 내면 탐구, 지혜, 고독, 인도자. 혼자만의 시간을 가지며 내면의 지혜를 찾아야 할 때입니다.", reversed: "고립, 외로움, 소외, 성급한 복귀. 지나친 고립감에 빠지거나 성찰의 시간을 갖지 못하고 있습니다." } },
+            { name: "10. 운명의 수레바퀴 (Wheel of Fortune)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/RWS_Tarot_10_Wheel_of_Fortune.jpg/800px-RWS_Tarot_10_Wheel_of_Fortune.jpg", meaning: { upright: "운명, 전환점, 행운, 변화, 주기. 삶의 중요한 전환점에 있으며, 긍정적인 변화가 다가오고 있습니다.", reversed: "불운, 예상치 못한 변화, 저항, 통제 불능. 운이 따르지 않거나 원치 않는 변화를 겪을 수 있습니다." } },
+            { name: "11. 정의 (Justice)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/RWS_Tarot_11_Justice.jpg/800px-RWS_Tarot_11_Justice.jpg", meaning: { upright: "정의, 균형, 진실, 공정함, 원인과 결과. 과거의 행동에 대한 결과를 마주하게 되며, 공정한 판단이 필요합니다.", reversed: "불공정, 편견, 불균형, 부정직. 부당한 대우를 받거나 잘못된 판단을 내릴 수 있습니다." } },
+            { name: "12. 매달린 남자 (The Hanged Man)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/RWS_Tarot_12_Hanged_Man.jpg/800px-RWS_Tarot_12_Hanged_Man.jpg", meaning: { upright: "희생, 새로운 관점, 인내, 기다림, 수용. 상황을 다른 시각으로 바라보고, 잠시 멈춰 기다려야 할 때입니다.", reversed: "헛된 희생, 정체, 무의미한 기다림, 저항. 불필요한 희생을 하거나 변화를 받아들이지 못하고 있습니다." } },
+            { name: "13. 죽음 (Death)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/RWS_Tarot_13_Death.jpg/800px-RWS_Tarot_13_Death.jpg", meaning: { upright: "끝, 변화, 전환, 새로운 시작, 놓아줌. 하나의 단계가 끝나고 새로운 시작을 맞이할 시간입니다.", reversed: "변화에 대한 저항, 정체, 두려움. 과거에 얽매여 새로운 시작을 받아들이지 못하고 있습니다." } },
+            { name: "14. 절제 (Temperance)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f8/RWS_Tarot_14_Temperance.jpg/800px-RWS_Tarot_14_Temperance.jpg", meaning: { upright: "균형, 조화, 인내, 중용, 통합. 서로 다른 것들을 조화롭게 통합하여 균형을 찾아야 합니다.", reversed: "불균형, 극단, 과잉, 갈등. 삶의 균형이 깨져 극단적인 행동을 할 수 있습니다." } },
+            { name: "15. 악마 (The Devil)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/RWS_Tarot_15_Devil.jpg/800px-RWS_Tarot_15_Devil.jpg", meaning: { upright: "속박, 중독, 물질주의, 유혹, 부정적인 패턴. 물질적인 욕망이나 나쁜 습관에 얽매여 있을 수 있습니다.", reversed: "자유, 속박에서의 해방, 자각. 스스로를 얽매던 것에서 벗어나 자유를 찾게 됩니다." } },
+            { name: "16. 탑 (The Tower)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/RWS_Tarot_16_Tower.jpg/800px-RWS_Tarot_16_Tower.jpg", meaning: { upright: "급작스러운 변화, 파괴, 재앙, 진실의 발견. 예상치 못한 사건으로 기존의 구조가 무너지고, 이를 통해 진실을 마주하게 됩니다.", reversed: "재앙의 회피, 변화의 두려움, 점진적인 붕괴. 큰 변화를 두려워하여 위기를 피하려고만 하고 있습니다." } },
+            { name: "17. 별 (The Star)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/RWS_Tarot_17_Star.jpg/800px-RWS_Tarot_17_Star.jpg", meaning: { upright: "희망, 영감, 치유, 평온, 긍정. 어려운 시기가 지나고 희망과 긍정적인 미래가 보입니다.", reversed: "절망, 희망 상실, 불신, 비관. 희망을 잃고 부정적인 생각에 사로잡혀 있습니다." } },
+            { name: "18. 달 (The Moon)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/RWS_Tarot_18_Moon.jpg/800px-RWS_Tarot_18_Moon.jpg", meaning: { upright: "불안, 환상, 잠재의식, 혼란, 직관. 불확실한 상황 속에서 두려움을 느끼지만, 직관을 통해 길을 찾아야 합니다.", reversed: "혼란의 해소, 진실의 발견, 두려움 극복. 숨겨져 있던 진실이 드러나고 불안감이 해소됩니다." } },
+            { name: "19. 태양 (The Sun)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/17/RWS_Tarot_19_Sun.jpg/800px-RWS_Tarot_19_Sun.jpg", meaning: { upright: "성공, 기쁨, 활력, 명확성, 긍정. 성공과 행복이 가득한 긍정적인 시기입니다. 모든 것이 명확해집니다.", reversed: "일시적인 슬픔, 자신감 부족, 비관. 잠시 기쁨을 잃거나 목표 달성에 어려움을 겪을 수 있습니다." } },
+            { name: "20. 심판 (Judgement)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/RWS_Tarot_20_Judgement.jpg/800px-RWS_Tarot_20_Judgement.jpg", meaning: { upright: "부활, 심판, 용서, 새로운 시작, 자각. 과거를 돌아보고 중요한 결정을 내려 새로운 단계로 나아갈 때입니다.", reversed: "자기 비판, 후회, 기회를 놓침, 우유부단. 과거의 실수에 얽매여 앞으로 나아가지 못하고 있습니다." } },
+            { name: "21. 세계 (The World)", image: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/RWS_Tarot_21_World.jpg/800px-RWS_Tarot_21_World.jpg", meaning: { upright: "완성, 성취, 통합, 여행, 만족. 하나의 주기가 성공적으로 끝나고 완성과 성취감을 느끼게 됩니다.", reversed: "미완성, 정체, 지름길 탐색, 불만족. 목표를 완전히 달성하지 못했거나 과정에 만족하지 못하고 있습니다." } }
+        ];
+
+        const drawButton = document.getElementById('drawButton');
+        const resultDiv = document.getElementById('result');
+        const cardDiv = document.getElementById('card');
+        const cardImageElem = document.getElementById('cardImage');
+        const cardTextElem = document.getElementById('cardText');
+        const cardNameElem = document.getElementById('cardName');
+        const cardOrientationElem = document.getElementById('cardOrientation');
+        const cardMeaningElem = document.getElementById('cardMeaning');
+
+        let isCardDrawn = false;
+
+        drawButton.addEventListener('click', () => {
+            if (isCardDrawn) {
+                resetCard();
+                return;
+            }
+
+            const randomIndex = Math.floor(Math.random() * majorArcana.length);
+            const selectedCard = majorArcana[randomIndex];
+
+            const isReversed = Math.random() < 0.5;
+            const orientation = isReversed ? "역방향" : "정방향";
+            const meaning = isReversed ? selectedCard.meaning.reversed : selectedCard.meaning.upright;
+
+            cardImageElem.src = selectedCard.image;
+            cardImageElem.alt = selectedCard.name; 
+            
+            // ▼▼▼ [수정된 부분 2] 역방향 여부에 따라 이미지에 클래스를 추가/제거 합니다. ▼▼▼
+            if (isReversed) {
+                cardImageElem.classList.add('reversed-image');
+            } else {
+                cardImageElem.classList.remove('reversed-image');
+            }
+            // ▲▲▲ [수정된 부분 2] ▲▲▲
+
+            cardTextElem.innerHTML = `
+                <h3 class="text-sm font-bold">${selectedCard.name.split('.')[1].trim()}</h3>
+                <p class="text-xs">${selectedCard.name.split('.')[0]}</p>
+            `;
+            
+            cardNameElem.textContent = selectedCard.name;
+            cardOrientationElem.textContent = orientation;
+            cardMeaningElem.textContent = meaning;
+
+            cardDiv.classList.add('flipped');
+            resultDiv.style.opacity = 1;
+
+            drawButton.textContent = '다시 뽑기';
+            isCardDrawn = true;
+        });
+
+        function resetCard() {
+            cardDiv.classList.remove('flipped');
+            resultDiv.style.opacity = 0;
+            
+            setTimeout(() => {
+                drawButton.textContent = '카드 뽑기';
+                isCardDrawn = false;
+                cardImageElem.src = "";
+                cardImageElem.alt = "타로 카드";
+                // ▼▼▼ [수정된 부분 3] 리셋할 때 회전 클래스도 제거합니다. ▼▼▼
+                cardImageElem.classList.remove('reversed-image');
+                // ▲▲▲ [수정된 부분 3] ▲▲▲
+            }, 600);
+        }
+    </script>
+
+</body>
+</html>
